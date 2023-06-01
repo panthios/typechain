@@ -20,7 +20,7 @@ use std::collections::{HashMap, hash_map::Entry};
 use proc_macro::TokenStream;
 use proc_macro2::Span;
 use proc_macro_error::{proc_macro_error, abort_call_site};
-use quote::quote;
+use quote::{quote, ToTokens};
 use syn::{ItemTrait, TypeParamBound, Fields, Meta, Path, spanned::Spanned};
 
 
@@ -186,4 +186,93 @@ impl syn::parse::Parse for UseChains {
 
         Ok(UseChains(paths))
     }
+}
+
+/// Manually implement chains.
+/// 
+/// This macro will generate chain implementations
+/// manually. This is useful when you want to implement
+/// chains for a type that you don't own.
+#[proc_macro_error]
+#[proc_macro]
+pub fn impl_chains(input: TokenStream) -> TokenStream {
+    let ast = syn::parse_macro_input!(input as ImplChains);
+
+    let ty = ast.ty.clone();
+
+    let mut impls: HashMap<Path, Vec<proc_macro2::TokenStream>> = HashMap::new();
+
+    for impl_ in ast.impls {
+        let tokens = impl_.func.to_token_stream();
+
+        if let Entry::Vacant(_) = impls.entry(impl_.chain.clone()) {
+            impls.insert(impl_.chain.clone(), vec![]);
+        }
+
+        impls.get_mut(&impl_.chain).unwrap().push(tokens);
+    }
+
+    let impls = impls.iter().map(|(trait_, tokens)| {
+        let mut trait_ = trait_.clone();
+        trait_.segments.last_mut().unwrap().ident = syn::Ident::new(&format!("{}Chainlink", trait_.segments.last().unwrap().ident), trait_.span());
+
+        let tokens = tokens.clone();
+
+        quote! {
+            impl #trait_ for #ty {
+                #(#tokens)*
+            }
+        }
+    }).collect::<Vec<_>>();
+
+    let expanded = quote! {
+        #(#impls)*
+    };
+
+    expanded.into()
+}
+
+struct ImplChains {
+    ty: syn::Type,
+    impls: Vec<ImplChain>
+}
+
+impl syn::parse::Parse for ImplChains {
+    fn parse(input: syn::parse::ParseStream) -> syn::Result<Self> {
+        let ty = input.parse::<syn::Type>()?;
+
+        input.parse::<syn::Token![=>]>()?;
+
+        let braced_input;
+        syn::braced!(braced_input in input);
+
+        let mut impls = Vec::new();
+
+        while !braced_input.is_empty() {
+            let func = braced_input.parse::<syn::TraitItemFn>()?;
+
+            braced_input.parse::<syn::Token![in]>()?;
+
+            let chain = braced_input.parse::<syn::Path>()?;
+
+            impls.push(ImplChain {
+                func,
+                chain
+            });
+
+            if !braced_input.is_empty() {
+                braced_input.parse::<syn::Token![;]>()?;
+            }
+        }
+
+        Ok(ImplChains {
+            ty,
+            impls
+        })
+    }
+}
+
+struct ImplChain {
+    func: syn::TraitItemFn,
+    chain: syn::Path
 }
