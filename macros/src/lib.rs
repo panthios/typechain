@@ -1,6 +1,21 @@
+#![deny(missing_docs)]
+
+//! # `typechain-macros`
+//! 
+//! This crate contains macros for working with
+//! related type functionality. Using dynamic
+//! dispatch, it is possible to create a chain
+//! of traits that can be used to access the
+//! fields of a struct.
+//! 
+//! The macros in this crate use user-defined traits
+//! and structs to generate an easy-to-use chain. See
+//! the [`typechain`](https://crates.io/crates/typechain)
+//! crate for more information.
+
 extern crate proc_macro;
 
-use std::collections::HashMap;
+use std::collections::{HashMap, hash_map::Entry};
 
 use proc_macro::TokenStream;
 use proc_macro2::Span;
@@ -9,6 +24,11 @@ use quote::quote;
 use syn::{ItemTrait, TypeParamBound, Fields, Meta, Path, spanned::Spanned};
 
 
+/// Create a chainlink trait.
+/// 
+/// The trait will be renamed to `{{name}}Chainlink`,
+/// and the original name will be used for the
+/// associated type (dyn `{{name}}Chainlink`).
 #[proc_macro_error]
 #[proc_macro_attribute]
 pub fn chainlink(_attr: TokenStream, input: TokenStream) -> TokenStream {
@@ -42,6 +62,12 @@ pub fn chainlink(_attr: TokenStream, input: TokenStream) -> TokenStream {
     expanded.into()
 }
 
+/// Derive chains for a struct.
+/// 
+/// This macro will generate chain implementations
+/// for the traits specified in the `chain` attribute.
+/// Any annotated fields will generate a getter method
+/// for that chainlink trait.
 #[proc_macro_error]
 #[proc_macro_derive(Chain, attributes(chain))]
 pub fn chain_derive(input: TokenStream) -> TokenStream {
@@ -93,11 +119,11 @@ pub fn chain_derive(input: TokenStream) -> TokenStream {
             }
         };
 
-        if traits.contains_key(&trait_) {
-            traits.get_mut(&trait_).unwrap().push(tokens);
-        } else {
-            traits.insert(trait_, vec![tokens]);
+        if let Entry::Vacant(_) = traits.entry(trait_.clone()) {
+            traits.insert(trait_.clone(), vec![]);
         }
+
+        traits.get_mut(&trait_).unwrap().push(tokens);
     }
 
     let traits = traits.iter().map(|(trait_, tokens)| {
@@ -118,6 +144,10 @@ pub fn chain_derive(input: TokenStream) -> TokenStream {
     expanded.into()
 }
 
+/// Import chainlink traits.
+/// 
+/// This is a helper macro for importing chainlink
+/// traits and their associated types.
 #[proc_macro_error]
 #[proc_macro]
 pub fn use_chains(input: TokenStream) -> TokenStream {
