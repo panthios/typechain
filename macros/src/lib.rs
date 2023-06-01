@@ -6,7 +6,7 @@ use proc_macro::TokenStream;
 use proc_macro2::Span;
 use proc_macro_error::{proc_macro_error, abort_call_site};
 use quote::quote;
-use syn::{ItemTrait, TypeParamBound, Fields, Meta, Path};
+use syn::{ItemTrait, TypeParamBound, Fields, Meta, Path, spanned::Spanned};
 
 
 #[proc_macro_error]
@@ -18,6 +18,7 @@ pub fn chainlink(_attr: TokenStream, input: TokenStream) -> TokenStream {
     };
 
     let name = ast.ident.clone();
+    let visibility = ast.vis.clone();
     let name_str = name.to_string();
 
     let new_name = syn::Ident::new(&format!("{}Chainlink", name_str), Span::call_site());
@@ -35,7 +36,7 @@ pub fn chainlink(_attr: TokenStream, input: TokenStream) -> TokenStream {
     let expanded = quote! {
         #ast
 
-        type #name = dyn #new_name;
+        #visibility type #name = dyn #new_name;
     };
 
     expanded.into()
@@ -115,4 +116,44 @@ pub fn chain_derive(input: TokenStream) -> TokenStream {
     };
 
     expanded.into()
+}
+
+#[proc_macro_error]
+#[proc_macro]
+pub fn use_chains(input: TokenStream) -> TokenStream {
+    let paths = syn::parse_macro_input!(input as UseChains);
+
+    let paths = paths.0.iter().map(|p| {
+        let mut path = p.clone();
+        path.segments.last_mut().unwrap().ident = syn::Ident::new(&format!("{}Chainlink", path.segments.last().unwrap().ident), p.span());
+
+        quote! {
+            use #path;
+            use #p;
+        }
+    }).collect::<Vec<_>>();
+
+    let expanded = quote! {
+        #(#paths)*
+    };
+
+    expanded.into()
+}
+
+struct UseChains(Vec<Path>);
+
+impl syn::parse::Parse for UseChains {
+    fn parse(input: syn::parse::ParseStream) -> syn::Result<Self> {
+        let mut paths = Vec::new();
+
+        while !input.is_empty() {
+            paths.push(input.parse::<Path>()?);
+
+            if !input.is_empty() {
+                input.parse::<syn::Token![,]>()?;
+            }
+        }
+
+        Ok(UseChains(paths))
+    }
 }
