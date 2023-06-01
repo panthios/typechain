@@ -1,0 +1,12 @@
+[package]
+name = "typechain"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+typechain-macros = { version = "0.1.0", path = "macros" }
+
+[workspace]
+members = [
+  "macros"
+]
