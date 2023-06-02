@@ -1,16 +1,38 @@
 use proc_macro2::Ident;
-use syn::{Type, parse::{Parse, ParseStream}, Token, spanned::Spanned, Path, Visibility};
+use syn::{Type, parse::{Parse, ParseStream}, Token, spanned::Spanned, Path, Visibility, Generics};
 
 
 #[derive(Clone)]
 pub struct Chainlink {
     pub name: Ident,
+    pub generics: Vec<Type>,
     pub fields: Vec<ChainlinkField>,
 }
 
 impl Parse for Chainlink {
     fn parse(input: ParseStream) -> syn::Result<Self> {
         let name = input.parse::<Ident>()?;
+
+        let lookahead = input.lookahead1();
+        let generics = if lookahead.peek(Token![<]) {
+            let mut generics = Vec::new();
+
+            input.parse::<Token![<]>()?;
+
+            while !input.peek(Token![>]) {
+                generics.push(input.parse::<Type>()?);
+
+                let lookahead = input.lookahead1();
+
+                if lookahead.peek(Token![,]) {
+                    input.parse::<Token![,]>()?;
+                }
+            }
+
+            input.parse::<Token![>]>()?;
+
+            generics
+        } else {vec![]};
 
         input.parse::<syn::Token![=>]>()?;
 
@@ -35,6 +57,7 @@ impl Parse for Chainlink {
 
         Ok(Chainlink {
             name,
+            generics,
             fields
         })
     }
@@ -77,12 +100,34 @@ impl Parse for ChainlinkField {
 #[derive(Clone)]
 pub struct Chain {
     pub name: Ident,
+    pub generics: Vec<Type>,
     pub fields: Vec<ChainField>
 }
 
 impl Parse for Chain {
     fn parse(input: ParseStream) -> syn::Result<Self> {
         let name = input.parse::<Ident>()?;
+
+        let lookahead = input.lookahead1();
+        let generics = if lookahead.peek(Token![<]) {
+            let mut generics = Vec::new();
+
+            input.parse::<Token![<]>()?;
+
+            while !input.peek(Token![>]) {
+                generics.push(input.parse::<Type>()?);
+
+                let lookahead = input.lookahead1();
+
+                if lookahead.peek(Token![,]) {
+                    input.parse::<Token![,]>()?;
+                }
+            }
+
+            input.parse::<Token![>]>()?;
+
+            generics
+        } else {vec![]};
 
         input.parse::<syn::Token![=>]>()?;
 
@@ -107,6 +152,7 @@ impl Parse for Chain {
 
         Ok(Chain {
             name,
+            generics,
             fields
         })
     }
@@ -190,7 +236,8 @@ impl syn::parse::Parse for UseChains {
 #[derive(Clone)]
 pub struct ImplChains {
     pub ty: syn::Type,
-    pub impls: Vec<ImplChain>
+    pub impls: Vec<ImplChain>,
+    pub where_clause: Option<Generics>
 }
 
 impl syn::parse::Parse for ImplChains {
@@ -216,14 +263,26 @@ impl syn::parse::Parse for ImplChains {
                 chain
             });
 
-            if !braced_input.is_empty() {
-                braced_input.parse::<syn::Token![;]>()?;
+            let lookahead = braced_input.lookahead1();
+
+            if lookahead.peek(Token![;]) {
+                braced_input.parse::<Token![;]>()?;
             }
         }
 
+        let lookahead = input.lookahead1();
+
+        let where_clause = if lookahead.peek(Token![where]) {
+            input.parse::<Token![where]>()?;
+            Some(input.parse::<Generics>()?)
+        } else {
+            None
+        };
+
         Ok(ImplChains {
             ty,
-            impls
+            impls,
+            where_clause
         })
     }
 }

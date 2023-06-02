@@ -17,7 +17,7 @@ extern crate proc_macro;
 
 use std::collections::{HashMap, hash_map::Entry};
 
-use parse::{ChainlinkField, ChainField, ChainFieldData};
+use parse::{ChainlinkField, ChainFieldData};
 use proc_macro::TokenStream;
 use proc_macro2::Span;
 use proc_macro_error::{proc_macro_error, emit_error, abort_if_dirty};
@@ -38,6 +38,11 @@ pub fn chainlink(input: TokenStream) -> TokenStream {
     let ast = syn::parse_macro_input!(input as parse::Chainlink);
 
     let name = ast.name.clone();
+    let generics = ast.generics.clone();
+    let generics = quote! {
+        < #( #generics ),* >
+    };
+
     let fields = ast.fields.iter().map(|f| {
         match f {
             ChainlinkField::Const(name, ty) => {
@@ -63,11 +68,11 @@ pub fn chainlink(input: TokenStream) -> TokenStream {
     let trait_name = syn::Ident::new(&format!("{}Chainlink", name), Span::call_site());
 
     let expanded = quote! {
-        pub trait #trait_name {
+        pub trait #trait_name #generics {
             #(#fields)*
         }
 
-        pub type #name = dyn #trait_name;
+        pub type #name #generics = dyn #trait_name #generics;
     };
 
     expanded.into()
@@ -80,6 +85,11 @@ pub fn chain(input: TokenStream) -> TokenStream {
     let ast = syn::parse_macro_input!(input as parse::Chain);
 
     let name = ast.name.clone();
+    let generics = ast.generics.clone();
+    let generics = quote! {
+        < #( #generics ),* >
+    };
+
     let fields = ast.fields.iter().map(|f| {
         match f.field.clone() {
             ChainFieldData::Const(vis, name, ty) => {
@@ -127,14 +137,14 @@ pub fn chain(input: TokenStream) -> TokenStream {
         let tokens = tokens.clone();
 
         quote! {
-            impl #trait_ for #name {
+            impl #generics #trait_ for #name #generics {
                 #(#tokens)*
             }
         }
     });
 
     let expanded = quote! {
-        pub struct #name {
+        pub struct #name #generics {
             #(#fields),*
         }
 
@@ -181,6 +191,7 @@ pub fn impl_chains(input: TokenStream) -> TokenStream {
     let ast = syn::parse_macro_input!(input as parse::ImplChains);
 
     let ty = ast.ty.clone();
+    let where_clause = ast.where_clause.clone();
 
     let mut impls: HashMap<Path, Vec<proc_macro2::TokenStream>> = HashMap::new();
 
@@ -201,7 +212,7 @@ pub fn impl_chains(input: TokenStream) -> TokenStream {
         let tokens = tokens.clone();
 
         quote! {
-            impl #trait_ for #ty {
+            impl #where_clause #trait_ for #ty {
                 #(#tokens)*
             }
         }
