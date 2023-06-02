@@ -3,16 +3,14 @@ use std::rc::Rc;
 use typechain::{Chain, chainlink};
 
 
-#[chainlink]
-trait Person {
-    fn name(&self) -> String;
-    fn age(&self) -> u8;
-}
+chainlink!(Person => {
+    const name: String;
+    const age: u8;
+});
 
-#[chainlink]
-trait Adult: Person {
-    fn job(&self) -> String;
-}
+chainlink!(Adult => {
+    const job: String;
+});
 
 #[derive(Chain)]
 struct Parent {

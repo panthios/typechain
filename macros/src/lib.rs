@@ -17,11 +17,14 @@ extern crate proc_macro;
 
 use std::collections::{HashMap, hash_map::Entry};
 
+use parse::ChainlinkField;
 use proc_macro::TokenStream;
 use proc_macro2::Span;
 use proc_macro_error::{proc_macro_error, abort_call_site};
 use quote::{quote, ToTokens};
 use syn::{ItemTrait, TypeParamBound, Fields, Meta, Path, spanned::Spanned};
+
+mod parse;
 
 
 /// Create a chainlink trait.
@@ -30,37 +33,46 @@ use syn::{ItemTrait, TypeParamBound, Fields, Meta, Path, spanned::Spanned};
 /// and the original name will be used for the
 /// associated type (dyn `{{name}}Chainlink`).
 #[proc_macro_error]
-#[proc_macro_attribute]
-pub fn chainlink(_attr: TokenStream, input: TokenStream) -> TokenStream {
-    let mut ast: ItemTrait = match syn::parse(input) {
-        Ok(ast) => ast,
-        Err(_) => abort_call_site!("Chainlink derivations can only be applied to traits")
-    };
+#[proc_macro]
+pub fn chainlink(input: TokenStream) -> TokenStream {
+    let ast = syn::parse_macro_input!(input as parse::Chainlink);
 
-    let name = ast.ident.clone();
-    let visibility = ast.vis.clone();
-    let name_str = name.to_string();
+    let name = ast.name.clone();
+    let fields = ast.fields.iter().map(|f| {
+        match f {
+            ChainlinkField::Const(name, ty) => {
+                quote! {
+                    fn #name(&self) -> #ty;
+                }
+            },
+            ChainlinkField::Fn(func) => {
+                let name = func.sig.ident.clone();
+                let generics = func.sig.generics.clone();
+                let inputs = func.sig.inputs.clone();
+                let output = func.sig.output.clone();
+                let where_clause = func.sig.generics.where_clause.clone();
 
-    let new_name = syn::Ident::new(&format!("{}Chainlink", name_str), Span::call_site());
-
-    ast.ident = new_name.clone();
-
-    ast.supertraits.iter_mut().for_each(|s| {
-        if let TypeParamBound::Trait(t) = s {
-            let name = t.path.segments.last().unwrap().ident.clone();
-            
-            t.path.segments.last_mut().unwrap().ident = syn::Ident::new(&format!("{}Chainlink", name), Span::call_site());
+                quote! {
+                    #generics
+                    fn #name(#inputs) #output #where_clause;
+                }
+            }
         }
     });
 
-    let expanded = quote! {
-        #ast
+    let trait_name = syn::Ident::new(&format!("{}Chainlink", name), Span::call_site());
 
-        #visibility type #name = dyn #new_name;
+    let expanded = quote! {
+        pub trait #trait_name {
+            #(#fields)*
+        }
+
+        pub type #name = dyn #trait_name;
     };
 
     expanded.into()
 }
+
 
 /// Derive chains for a struct.
 /// 

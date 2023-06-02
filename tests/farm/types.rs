@@ -1,10 +1,9 @@
 use typechain::{Chain, chainlink};
 
 
-#[chainlink]
-pub trait Living {
-    fn name(&self) -> String;
-}
+chainlink!(Living => {
+    const name: String;
+});
 
 #[derive(Chain)]
 pub struct Farmer {
@@ -22,10 +21,9 @@ impl Farmer {
     }
 }
 
-#[chainlink]
-pub trait Animal: Living {
-    fn legs(&self) -> u8;
-}
+chainlink!(Animal => {
+    const legs: u8;
+});
 
 #[derive(Chain)]
 pub struct FarmAnimal {

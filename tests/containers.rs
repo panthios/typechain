@@ -1,11 +1,10 @@
 use typechain::{chainlink, impl_chains};
 
 
-#[chainlink]
-pub trait Container {
+chainlink!(Container => {
     fn get(&self) -> u32;
     fn set(&mut self, value: u32);
-}
+});
 
 impl_chains!(Box<u32> => {
     fn get(&self) -> u32 {
