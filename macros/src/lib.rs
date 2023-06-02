@@ -17,12 +17,12 @@ extern crate proc_macro;
 
 use std::collections::{HashMap, hash_map::Entry};
 
-use parse::ChainlinkField;
+use parse::{ChainlinkField, ChainField, ChainFieldData};
 use proc_macro::TokenStream;
 use proc_macro2::Span;
-use proc_macro_error::{proc_macro_error, abort_call_site};
+use proc_macro_error::{proc_macro_error, emit_error, abort_if_dirty};
 use quote::{quote, ToTokens};
-use syn::{ItemTrait, TypeParamBound, Fields, Meta, Path, spanned::Spanned};
+use syn::{Path, spanned::Spanned, Visibility};
 
 mod parse;
 
@@ -42,7 +42,7 @@ pub fn chainlink(input: TokenStream) -> TokenStream {
         match f {
             ChainlinkField::Const(name, ty) => {
                 quote! {
-                    fn #name(&self) -> #ty;
+                    fn #name(&self) -> & #ty;
                 }
             },
             ChainlinkField::Fn(func) => {
@@ -73,73 +73,57 @@ pub fn chainlink(input: TokenStream) -> TokenStream {
     expanded.into()
 }
 
-
-/// Derive chains for a struct.
-/// 
-/// This macro will generate chain implementations
-/// for the traits specified in the `chain` attribute.
-/// Any annotated fields will generate a getter method
-/// for that chainlink trait.
+/// Create a chain.
 #[proc_macro_error]
-#[proc_macro_derive(Chain, attributes(chain))]
-pub fn chain_derive(input: TokenStream) -> TokenStream {
-    let ast = syn::parse_macro_input!(input as syn::DeriveInput);
+#[proc_macro]
+pub fn chain(input: TokenStream) -> TokenStream {
+    let ast = syn::parse_macro_input!(input as parse::Chain);
 
-    let name = ast.ident.clone();
-    let ast = match ast.data {
-        syn::Data::Struct(s) => s,
-        _ => abort_call_site!("Chain can only be derived for structs")
-    };
-
-    if let Fields::Named(_) = ast.fields {} else {
-        abort_call_site!("Chain can only be derived for structs with named fields")
-    }
-
-    let impls = ast.fields.iter().filter(|f| {
-        f.attrs.iter().any(|a| {
-            a.path().is_ident("chain")
-        })
-    }).flat_map(|f| {
-        let name = f.ident.clone().unwrap();
-        let ty = f.ty.clone();
-
-        f.attrs.iter().filter(|a| {
-            a.path().is_ident("chain")
-        }).map(move |a| {
-            let meta = match a.parse_args::<Meta>() {
-                Ok(meta) => meta,
-                Err(_) => abort_call_site!("Invalid chain attribute")
-            };
-
-            let mut path = match meta {
-                Meta::Path(p) => p,
-                _ => abort_call_site!("Invalid chain attribute")
-            };
-
-            path.segments.last_mut().unwrap().ident = syn::Ident::new(&format!("{}Chainlink", path.segments.last().unwrap().ident), Span::call_site());
-
-            (path, name.clone(), ty.clone())
-        })
-    }).collect::<Vec<_>>();
-
-    let mut traits: HashMap<Path, Vec<proc_macro2::TokenStream>> = HashMap::new();
-
-    for (trait_, attr_name, attr_ty) in impls {
-        let tokens = quote! {
-            fn #attr_name(&self) -> #attr_ty {
-                self.#attr_name.clone()
+    let name = ast.name.clone();
+    let fields = ast.fields.iter().map(|f| {
+        match f.field.clone() {
+            ChainFieldData::Const(vis, name, ty) => {
+                quote! {
+                    #vis #name: #ty
+                }
             }
-        };
+        }
+    });
 
-        if let Entry::Vacant(_) = traits.entry(trait_.clone()) {
-            traits.insert(trait_.clone(), vec![]);
+    let trait_funcs: HashMap<Path, Vec<proc_macro2::TokenStream>> = ast.fields.iter().fold(HashMap::new(), |mut map, f| {
+        let parents = f.parents.clone();
+
+        for parent in parents {
+            if let Entry::Vacant(_) = map.entry(parent.clone()) {
+                map.insert(parent.clone(), vec![]);
+            }
+
+            let tokens = match f.field.clone() {
+                ChainFieldData::Const(vis, name, ty) => {
+                    if !matches!(vis, Visibility::Inherited) {
+                        emit_error!(vis, "Chainlink fields must be of inherited visibility");
+                    }
+
+                    quote! {
+                        fn #name(&self) -> & #ty {
+                            &self.#name
+                        }
+                    }
+                }
+            };
+
+            abort_if_dirty();
+
+            map.get_mut(&parent).unwrap().push(tokens);
         }
 
-        traits.get_mut(&trait_).unwrap().push(tokens);
-    }
+        map
+    });
 
-    let traits = traits.iter().map(|(trait_, tokens)| {
-        let trait_ = trait_.clone();
+    let trait_impls = trait_funcs.iter().map(|(trait_, tokens)| {
+        let mut trait_ = trait_.clone();
+        trait_.segments.last_mut().unwrap().ident = syn::Ident::new(&format!("{}Chainlink", trait_.segments.last().unwrap().ident), trait_.span());
+
         let tokens = tokens.clone();
 
         quote! {
@@ -147,10 +131,14 @@ pub fn chain_derive(input: TokenStream) -> TokenStream {
                 #(#tokens)*
             }
         }
-    }).collect::<Vec<_>>();
+    });
 
     let expanded = quote! {
-        #(#traits)*
+        pub struct #name {
+            #(#fields),*
+        }
+
+        #(#trait_impls)*
     };
 
     expanded.into()
@@ -163,7 +151,7 @@ pub fn chain_derive(input: TokenStream) -> TokenStream {
 #[proc_macro_error]
 #[proc_macro]
 pub fn use_chains(input: TokenStream) -> TokenStream {
-    let paths = syn::parse_macro_input!(input as UseChains);
+    let paths = syn::parse_macro_input!(input as parse::UseChains);
 
     let paths = paths.0.iter().map(|p| {
         let mut path = p.clone();
@@ -182,24 +170,6 @@ pub fn use_chains(input: TokenStream) -> TokenStream {
     expanded.into()
 }
 
-struct UseChains(Vec<Path>);
-
-impl syn::parse::Parse for UseChains {
-    fn parse(input: syn::parse::ParseStream) -> syn::Result<Self> {
-        let mut paths = Vec::new();
-
-        while !input.is_empty() {
-            paths.push(input.parse::<Path>()?);
-
-            if !input.is_empty() {
-                input.parse::<syn::Token![,]>()?;
-            }
-        }
-
-        Ok(UseChains(paths))
-    }
-}
-
 /// Manually implement chains.
 /// 
 /// This macro will generate chain implementations
@@ -208,7 +178,7 @@ impl syn::parse::Parse for UseChains {
 #[proc_macro_error]
 #[proc_macro]
 pub fn impl_chains(input: TokenStream) -> TokenStream {
-    let ast = syn::parse_macro_input!(input as ImplChains);
+    let ast = syn::parse_macro_input!(input as parse::ImplChains);
 
     let ty = ast.ty.clone();
 
@@ -242,49 +212,4 @@ pub fn impl_chains(input: TokenStream) -> TokenStream {
     };
 
     expanded.into()
-}
-
-struct ImplChains {
-    ty: syn::Type,
-    impls: Vec<ImplChain>
-}
-
-impl syn::parse::Parse for ImplChains {
-    fn parse(input: syn::parse::ParseStream) -> syn::Result<Self> {
-        let ty = input.parse::<syn::Type>()?;
-
-        input.parse::<syn::Token![=>]>()?;
-
-        let braced_input;
-        syn::braced!(braced_input in input);
-
-        let mut impls = Vec::new();
-
-        while !braced_input.is_empty() {
-            let func = braced_input.parse::<syn::TraitItemFn>()?;
-
-            braced_input.parse::<syn::Token![in]>()?;
-
-            let chain = braced_input.parse::<syn::Path>()?;
-
-            impls.push(ImplChain {
-                func,
-                chain
-            });
-
-            if !braced_input.is_empty() {
-                braced_input.parse::<syn::Token![;]>()?;
-            }
-        }
-
-        Ok(ImplChains {
-            ty,
-            impls
-        })
-    }
-}
-
-struct ImplChain {
-    func: syn::TraitItemFn,
-    chain: syn::Path
 }

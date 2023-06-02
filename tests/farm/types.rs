@@ -1,16 +1,16 @@
-use typechain::{Chain, chainlink};
+use typechain::{chain, chainlink};
 
 
 chainlink!(Living => {
     const name: String;
 });
 
-#[derive(Chain)]
-pub struct Farmer {
-    #[chain(Living)]
-    name: String,
-    pub age: u8
-}
+chain!(Farmer => {
+    @Living
+    const name: String;
+
+    pub const age: u8;
+});
 
 impl Farmer {
     pub fn new(name: &str, age: u8) -> Self {
@@ -25,13 +25,13 @@ chainlink!(Animal => {
     const legs: u8;
 });
 
-#[derive(Chain)]
-pub struct FarmAnimal {
-    #[chain(Living)]
-    name: String,
-    #[chain(Animal)]
-    legs: u8
-}
+chain!(FarmAnimal => {
+    @Living
+    const name: String;
+
+    @Animal
+    const legs: u8;
+});
 
 impl FarmAnimal {
     pub fn new(name: &str, legs: u8) -> Self {
@@ -42,13 +42,13 @@ impl FarmAnimal {
     }
 }
 
-#[derive(Chain)]
-pub struct WildAnimal {
-    #[chain(Living)]
-    name: String,
-    #[chain(Animal)]
-    legs: u8
-}
+chain!(WildAnimal => {
+    @Living
+    const name: String;
+
+    @Animal
+    const legs: u8;
+});
 
 impl WildAnimal {
     pub fn new(name: &str, legs: u8) -> Self {

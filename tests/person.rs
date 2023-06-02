@@ -1,6 +1,6 @@
 use std::rc::Rc;
 
-use typechain::{Chain, chainlink};
+use typechain::{chain, chainlink};
 
 
 chainlink!(Person => {
@@ -12,35 +12,39 @@ chainlink!(Adult => {
     const job: String;
 });
 
-#[derive(Chain)]
-struct Parent {
-    #[chain(Person)]
-    name: String,
-    #[chain(Person)]
-    age: u8,
-    #[chain(Adult)]
-    job: String,
-    children: Vec<Rc<Person>>
-}
+chain!(Parent => {
+    @Person
+    const name: String;
 
-#[derive(Chain)]
-struct Employer {
-    #[chain(Person)]
-    name: String,
-    #[chain(Person)]
-    age: u8,
-    #[chain(Adult)]
-    job: String
-}
+    @Person
+    const age: u8;
 
-#[derive(Chain)]
-struct Child {
-    #[chain(Person)]
-    name: String,
-    #[chain(Person)]
-    age: u8,
-    school: String
-}
+    @Adult
+    const job: String;
+
+    const children: Vec<Rc<Person>>;
+});
+
+chain!(Employer => {
+    @Person
+    const name: String;
+
+    @Person
+    const age: u8;
+
+    @Adult
+    const job: String;
+});
+
+chain!(Child => {
+    @Person
+    const name: String;
+
+    @Person
+    const age: u8;
+
+    const school: String;
+});
 
 #[test]
 fn test_person() {

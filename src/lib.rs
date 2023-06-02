@@ -9,24 +9,21 @@
 //! ## Usage
 //! 
 //! ```
-//! use typechain::{chainlink, Chain};
+//! use typechain::{chainlink, chain};
 //! 
-//! #[chainlink]
-//! pub trait Foo {
-//!    fn foo(&self) -> u32;
-//! }
+//! chainlink!(Foo => {
+//!     const foo: u32;
+//! });
 //! 
-//! #[derive(Chain)]
-//! pub struct Bar {
-//!     #[chain(Foo)]
-//!     foo: u32
-//! }
+//! chain!(Bar => {
+//!     @Foo
+//!     const foo: u32;
+//! });
 //! 
-//! #[derive(Chain)]
-//! pub struct Baz {
-//!    #[chain(Foo)]
-//!    foo: u32
-//! }
+//! chain!(Baz => {
+//!     @Foo
+//!     const foo: u32;
+//! });
 //! 
 //! let bar = Bar { foo: 42 };
 //! let baz = Baz { foo: 97 };

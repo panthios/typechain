@@ -7,23 +7,32 @@ This crate provides procedural macros for generating chains of related traits in
 ### `types.rs`
 
 ```rust
-use typechain::{chainlink, Chain};
+use typechain::{chainlink, chain};
 
-#[chainlink]
-pub trait Currency {
-  fn usd_value(&self) -> f64;
+chainlink!(Currency => {
+  const usd_value: f64;
+});
+
+chain!(Fiat => {
+  @Currency
+  const usd_value: f64;
+});
+
+impl Fiat {
+  pub fn new(usd_value: f64) -> Self {
+    Self { usd_value }
+  }
 }
 
-#[derive(Chain)]
-pub struct Fiat {
-  #[chain(Currency)]
-  pub usd_value: f64
-}
+chain!(Crypto => {
+  @Currency
+  const usd_value: f64;
+});
 
-#[derive(Chain)]
-pub struct Crypto {
-  #[chain(Currency)]
-  pub usd_value: f64
+impl Crypto {
+  pub fn new(usd_value: f64) -> Self {
+    Self { usd_value }
+  }
 }
 ```
 
@@ -37,8 +46,8 @@ use types::{Fiat, Crypto};
 use_chains![types::Currency];
 
 fn main() {
-  let usd = Fiat { usd_value: 1.0 };
-  let btc = Crypto { usd_value: 10000.0 };
+  let usd = Fiat::new(1.0);
+  let btc = Crypto::new(10000.0);
 
   let currencies: Vec<&Currency> = vec![&usd, &btc];
 }

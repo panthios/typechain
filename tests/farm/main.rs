@@ -18,7 +18,7 @@ fn test_farm() {
     ];
 
     for animal in animals {
-        assert_eq!(animal.legs(), 4);
+        assert_eq!(animal.legs(), &4);
     }
 
     assert_eq!(farmer.name(), "John");
