@@ -57,7 +57,7 @@ pub fn chainlink(input: TokenStream) -> TokenStream {
             },
             ChainlinkField::Static(name, ty) => {
                 quote! {
-                    fn #name() -> &'static #ty;
+                    fn #name(&self) -> #ty;
                 }
             },
             ChainlinkField::Fn(func) => {
@@ -150,8 +150,9 @@ pub fn chain(input: TokenStream) -> TokenStream {
                 },
                 ChainFieldData::Static(name, ty, expr) => {
                     quote_spanned! { expr.span() =>
-                        fn #name() -> &'static #ty {
-                            &#expr
+                        #[allow(clippy::needless_borrow)]
+                        fn #name(&self) -> #ty {
+                            #expr
                         }
                     }
                 }
@@ -203,7 +204,9 @@ pub fn use_chains(input: TokenStream) -> TokenStream {
         path.segments.last_mut().unwrap().ident = syn::Ident::new(&format!("{}Chainlink", path.segments.last().unwrap().ident), p.span());
 
         quote! {
+            #[allow(unused_imports)]
             use #path;
+            #[allow(unused_imports)]
             use #p;
         }
     }).collect::<Vec<_>>();

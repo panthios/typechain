@@ -37,4 +37,8 @@ fn test_tags() {
         title: "Hello, world!".to_string(),
         comments,
     };
+
+    let has_tags: &HasTags = &post;
+
+    assert_eq!(has_tags.tags(), vec!["post"]);
 }
