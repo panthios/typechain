@@ -50,6 +50,11 @@ pub fn chainlink(input: TokenStream) -> TokenStream {
                     fn #name(&self) -> & #ty;
                 }
             },
+            ChainlinkField::Mut(name, ty) => {
+                quote! {
+                    fn #name(&mut self) -> &mut #ty;
+                }
+            },
             ChainlinkField::Fn(func) => {
                 let name = func.sig.ident.clone();
                 let generics = func.sig.generics.clone();
@@ -86,6 +91,7 @@ pub fn chain(input: TokenStream) -> TokenStream {
 
     let name = ast.name.clone();
     let generics = ast.generics.clone();
+
     let generics = quote! {
         < #( #generics ),* >
     };
@@ -95,6 +101,11 @@ pub fn chain(input: TokenStream) -> TokenStream {
             ChainFieldData::Const(vis, name, ty) => {
                 quote! {
                     #vis #name: #ty
+                }
+            },
+            ChainFieldData::Mut(name, ty) => {
+                quote! {
+                    #name: #ty
                 }
             }
         }
@@ -117,6 +128,13 @@ pub fn chain(input: TokenStream) -> TokenStream {
                     quote! {
                         fn #name(&self) -> & #ty {
                             &self.#name
+                        }
+                    }
+                },
+                ChainFieldData::Mut(name, ty) => {
+                    quote! {
+                        fn #name(&mut self) -> &mut #ty {
+                            &mut self.#name
                         }
                     }
                 }

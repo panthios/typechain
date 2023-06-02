@@ -66,6 +66,7 @@ impl Parse for Chainlink {
 #[derive(Clone)]
 pub enum ChainlinkField {
     Const(Ident, Type),
+    Mut(Ident, Type),
     Fn(syn::TraitItemFn)
 }
 
@@ -83,6 +84,16 @@ impl Parse for ChainlinkField {
             let ty = input.parse::<Type>()?;
 
             Ok(ChainlinkField::Const(name, ty))
+        } else if lookahead.peek(Token![mut]) {
+            input.parse::<Token![mut]>()?;
+
+            let name = input.parse::<Ident>()?;
+
+            input.parse::<Token![:]>()?;
+
+            let ty = input.parse::<Type>()?;
+
+            Ok(ChainlinkField::Mut(name, ty))
         } else if lookahead.peek(Token![fn]) {
             let func = input.parse::<syn::TraitItemFn>()?;
 
@@ -189,7 +200,8 @@ impl Parse for ChainField {
 
 #[derive(Clone)]
 pub enum ChainFieldData {
-    Const(Visibility, Ident, Type)
+    Const(Visibility, Ident, Type),
+    Mut(Ident, Type)
 }
 
 impl Parse for ChainFieldData {
@@ -208,6 +220,20 @@ impl Parse for ChainFieldData {
             let ty = input.parse::<Type>()?;
 
             Ok(ChainFieldData::Const(vis, name, ty))
+        } else if lookahead.peek(Token![mut]) {
+            if vis != Visibility::Inherited {
+                return Err(syn::Error::new(vis.span(), "Chainlink fields must be of inherited visibility"));
+            }
+
+            input.parse::<Token![mut]>()?;
+
+            let name = input.parse::<Ident>()?;
+
+            input.parse::<Token![:]>()?;
+
+            let ty = input.parse::<Type>()?;
+
+            Ok(ChainFieldData::Mut(name, ty))
         } else {
             Err(lookahead.error())
         }
