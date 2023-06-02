@@ -32,3 +32,8 @@
 //! ```
 
 pub use typechain_macros::*;
+
+
+chainlink!(HasTags => {
+    static tags: Vec<&'static str>;
+});

@@ -21,7 +21,7 @@ use parse::{ChainlinkField, ChainFieldData};
 use proc_macro::TokenStream;
 use proc_macro2::Span;
 use proc_macro_error::{proc_macro_error, emit_error, abort_if_dirty};
-use quote::{quote, ToTokens};
+use quote::{quote, ToTokens, quote_spanned};
 use syn::{Path, spanned::Spanned, Visibility};
 
 mod parse;
@@ -55,6 +55,11 @@ pub fn chainlink(input: TokenStream) -> TokenStream {
                     fn #name(&mut self) -> &mut #ty;
                 }
             },
+            ChainlinkField::Static(name, ty) => {
+                quote! {
+                    fn #name() -> &'static #ty;
+                }
+            },
             ChainlinkField::Fn(func) => {
                 let name = func.sig.ident.clone();
                 let generics = func.sig.generics.clone();
@@ -73,10 +78,12 @@ pub fn chainlink(input: TokenStream) -> TokenStream {
     let trait_name = syn::Ident::new(&format!("{}Chainlink", name), Span::call_site());
 
     let expanded = quote! {
+        #[allow(missing_docs)]
         pub trait #trait_name #generics {
             #(#fields)*
         }
 
+        #[allow(missing_docs)]
         pub type #name #generics = dyn #trait_name #generics;
     };
 
@@ -96,17 +103,20 @@ pub fn chain(input: TokenStream) -> TokenStream {
         < #( #generics ),* >
     };
 
-    let fields = ast.fields.iter().map(|f| {
+    let fields = ast.fields.iter().filter_map(|f| {
         match f.field.clone() {
             ChainFieldData::Const(vis, name, ty) => {
-                quote! {
+                Some(quote! {
                     #vis #name: #ty
-                }
+                })
             },
             ChainFieldData::Mut(name, ty) => {
-                quote! {
+                Some(quote! {
                     #name: #ty
-                }
+                })
+            },
+            ChainFieldData::Static(..) => {
+                None
             }
         }
     });
@@ -135,6 +145,13 @@ pub fn chain(input: TokenStream) -> TokenStream {
                     quote! {
                         fn #name(&mut self) -> &mut #ty {
                             &mut self.#name
+                        }
+                    }
+                },
+                ChainFieldData::Static(name, ty, expr) => {
+                    quote_spanned! { expr.span() =>
+                        fn #name() -> &'static #ty {
+                            &#expr
                         }
                     }
                 }

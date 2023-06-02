@@ -1,5 +1,5 @@
 use proc_macro2::Ident;
-use syn::{Type, parse::{Parse, ParseStream}, Token, spanned::Spanned, Path, Visibility, Generics, TypeParamBound, TypeParam};
+use syn::{Type, parse::{Parse, ParseStream}, Token, spanned::Spanned, Path, Visibility, Generics, TypeParamBound, TypeParam, Expr};
 
 
 #[derive(Clone)]
@@ -67,6 +67,7 @@ impl Parse for Chainlink {
 pub enum ChainlinkField {
     Const(Ident, Type),
     Mut(Ident, Type),
+    Static(Ident, Type),
     Fn(syn::TraitItemFn)
 }
 
@@ -94,6 +95,16 @@ impl Parse for ChainlinkField {
             let ty = input.parse::<Type>()?;
 
             Ok(ChainlinkField::Mut(name, ty))
+        } else if lookahead.peek(Token![static]) {
+            input.parse::<Token![static]>()?;
+
+            let name = input.parse::<Ident>()?;
+
+            input.parse::<Token![:]>()?;
+
+            let ty = input.parse::<Type>()?;
+
+            Ok(ChainlinkField::Static(name, ty))
         } else if lookahead.peek(Token![fn]) {
             let func = input.parse::<syn::TraitItemFn>()?;
 
@@ -201,7 +212,8 @@ impl Parse for ChainField {
 #[derive(Clone)]
 pub enum ChainFieldData {
     Const(Visibility, Ident, Type),
-    Mut(Ident, Type)
+    Mut(Ident, Type),
+    Static(Ident, Type, Expr)
 }
 
 impl Parse for ChainFieldData {
@@ -234,6 +246,24 @@ impl Parse for ChainFieldData {
             let ty = input.parse::<Type>()?;
 
             Ok(ChainFieldData::Mut(name, ty))
+        } else if lookahead.peek(Token![static]) {
+            if vis != Visibility::Inherited {
+                return Err(syn::Error::new(vis.span(), "Chainlink fields must be of inherited visibility"));
+            }
+
+            input.parse::<Token![static]>()?;
+
+            let name = input.parse::<Ident>()?;
+
+            input.parse::<Token![:]>()?;
+
+            let ty = input.parse::<Type>()?;
+
+            input.parse::<Token![=]>()?;
+
+            let expr = input.parse::<Expr>()?;
+
+            Ok(ChainFieldData::Static(name, ty, expr))
         } else {
             Err(lookahead.error())
         }
