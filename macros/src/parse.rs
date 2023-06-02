@@ -1,11 +1,11 @@
 use proc_macro2::Ident;
-use syn::{Type, parse::{Parse, ParseStream}, Token, spanned::Spanned, Path, Visibility, Generics};
+use syn::{Type, parse::{Parse, ParseStream}, Token, spanned::Spanned, Path, Visibility, Generics, TypeParamBound, TypeParam};
 
 
 #[derive(Clone)]
 pub struct Chainlink {
     pub name: Ident,
-    pub generics: Vec<Type>,
+    pub generics: Vec<TypeParamBound>,
     pub fields: Vec<ChainlinkField>,
 }
 
@@ -20,7 +20,7 @@ impl Parse for Chainlink {
             input.parse::<Token![<]>()?;
 
             while !input.peek(Token![>]) {
-                generics.push(input.parse::<Type>()?);
+                generics.push(input.parse::<TypeParamBound>()?);
 
                 let lookahead = input.lookahead1();
 
@@ -111,7 +111,7 @@ impl Parse for ChainlinkField {
 #[derive(Clone)]
 pub struct Chain {
     pub name: Ident,
-    pub generics: Vec<Type>,
+    pub generics: Vec<TypeParamBound>,
     pub fields: Vec<ChainField>
 }
 
@@ -126,7 +126,7 @@ impl Parse for Chain {
             input.parse::<Token![<]>()?;
 
             while !input.peek(Token![>]) {
-                generics.push(input.parse::<Type>()?);
+                generics.push(input.parse::<TypeParamBound>()?);
 
                 let lookahead = input.lookahead1();
 
