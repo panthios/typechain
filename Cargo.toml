@@ -1,7 +1,15 @@
 [package]
 name = "typechain"
+description = "Create chains of trait objects"
+homepage = "https://github.com/panthios/typechain"
+repository = "https://github.com/panthios/typechain"
+documentation = "https://docs.rs/typechain"
+license = "MIT OR Apache-2.0"
+readme = "README.md"
 version = "0.1.0"
 edition = "2021"
+keywords = ["trait", "object", "chain", "chaining", "type"]
+categories = ["rust-patterns"]
 
 [dependencies]
 typechain-macros = { version = "0.1.0", path = "macros" }

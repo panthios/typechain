@@ -1,7 +1,15 @@
 [package]
 name = "typechain-macros"
+description = "Macros for the typechain crate"
+homepage = "https://github.com/panthios/typechain"
+repository = "https://github.com/panthios/typechain"
+documentation = "https://docs.rs/typechain-macros"
+license = "MIT OR Apache-2.0"
+readme = "README.md"
 version = "0.1.0"
 edition = "2021"
+keywords = ["typechain", "macros"]
+categories = ["development-tools", "rust-patterns"]
 
 [lib]
 proc-macro = true
